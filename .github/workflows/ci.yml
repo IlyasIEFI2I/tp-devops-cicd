@@ -32,10 +32,13 @@ jobs:
       - name: Create artifacts directory
         run: mkdir -p artifacts
 
-      - name: Run unit tests
-        run: npm run test:unit
+      - name: Run unit tests only
+        run: |
+          mkdir -p artifacts
+          npx jest tests/unit.test.js --runInBand --json --outputFile=artifacts/unit.json
         env:
           CI: true
+
 
       - name: Upload unit test artifact
         if: always()
