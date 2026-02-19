@@ -1,6 +1,6 @@
 ##                      TP DevOps – Pipeline CI/CD
-##                      Nom : Ilyas EL AOUFIR
-##                      Classe : Archi O24 DIS
+##                      Nom : Ilyas EL AOUFIR   |  Hajer AMAIRI
+##                      Classe : Archi O24 DIS   |  DSP5 Archi O25Dis
 
 ## 🚀 Lancement en local
 
