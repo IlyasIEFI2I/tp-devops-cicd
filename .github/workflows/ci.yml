@@ -7,7 +7,7 @@ on:
     branches: [ master, main, develop ]
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: "20"
 
 jobs:
   # Job 1: Unit Tests (ubuntu-latest)
@@ -28,6 +28,9 @@ jobs:
 
       - name: Display APP_NAME variable (non-sensitive)
         run: echo "Application Name is ${{ vars.APP_NAME }}"
+
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
 
       - name: Run unit tests
         run: npm run test:unit
@@ -54,12 +57,13 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
           POSTGRES_DB: appdb
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U app -d appdb"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
         ports:
           - 5432:5432
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -71,6 +75,9 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
 
       - name: Run integration tests
         run: npm run test:integration
@@ -92,7 +99,7 @@ jobs:
 
   # Job 3: Analyze Unit Test Artifacts (self-hosted runner)
   analyze_artifact:
-    runs-on: [self-hosted]
+    runs-on: self-hosted
     needs: unit_tests
     name: Analyze Test Results on Self-Hosted
     steps:
@@ -103,6 +110,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
 
       - name: Download unit test artifact
         uses: actions/download-artifact@v4
