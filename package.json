@@ -1,0 +1,23 @@
+{
+  "name": "tp-devops-cicd",
+  "version": "1.0.0",
+  "description": "TP DevOps CI/CD avec Node.js et PostgreSQL",
+  "main": "src/server.js",
+  "scripts": {
+  "start": "node src/server.js",
+  "test:unit": "jest --runInBand --testPathPatterns=tests/unit.test.js --json --outputFile=artifacts/unit.json",
+  "test:integration": "jest --runInBand --testPathPatterns=tests/integration.test.js --json --outputFile=artifacts/integration.json",
+  "test": "npm run test:unit && npm run test:integration"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "pg": "^8.10.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3"
+  }
+}

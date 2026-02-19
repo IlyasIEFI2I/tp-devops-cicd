@@ -1,0 +1,211 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # Job 1: Unit Tests (ubuntu-latest)
+  unit_tests:
+    runs-on: ubuntu-latest
+    name: Unit Tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Display APP_NAME variable (non-sensitive)
+        run: echo "Application Name is ${{ vars.APP_NAME }}"
+
+      - name: Run unit tests
+        run: npm run test:unit
+        env:
+          CI: true
+
+      - name: Upload unit test artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: artifacts/unit.json
+          retention-days: 7
+
+  # Job 2: Integration Tests (ubuntu-latest with PostgreSQL service)
+  integration_tests:
+    runs-on: ubuntu-latest
+    name: Integration Tests
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          POSTGRES_DB: appdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: app
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_NAME: appdb
+          NODE_ENV: test
+
+      - name: Upload integration test artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: artifacts/integration.json
+          retention-days: 7
+
+  # Job 3: Analyze Unit Test Artifacts (self-hosted runner)
+  analyze_artifact:
+    runs-on: [self-hosted]
+    needs: unit_tests
+    name: Analyze Test Results on Self-Hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download unit test artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: unit-test-results
+          path: artifacts
+
+      - name: Analyze test results
+        run: |
+          node -e "
+            const fs = require('fs');
+            const data = JSON.parse(fs.readFileSync('artifacts/unit.json', 'utf8'));
+            console.log('Test Summary:');
+            console.log('Total Tests:', data.numTotalTests);
+            console.log('Passed Tests:', data.numPassedTests);
+            console.log('Failed Tests:', data.numFailedTests);
+            if (data.numFailedTests > 0) {
+              console.error('FAILED: Some tests did not pass!');
+              process.exit(1);
+            }
+            console.log('SUCCESS: All tests passed!');
+          "
+
+  # Job 4: Build Dev (ubuntu-latest, parallel with build_prod)
+  build_dev:
+    runs-on: ubuntu-latest
+    needs: [unit_tests, integration_tests]
+    name: Build Dev Environment
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Create build directory
+        run: mkdir -p build
+
+      - name: Build config for Dev
+        run: |
+          node -e "
+            const config = {
+              environment: 'development',
+              apiUrl: 'http://localhost:3000',
+              apiVersion: '1.0.0',
+              debugMode: true
+            };
+            const fs = require('fs');
+            fs.writeFileSync('build/config.json', JSON.stringify(config, null, 2));
+            console.log('Dev config created:');
+            console.log(JSON.stringify(config, null, 2));
+          "
+
+      - name: Display build config location
+        run: ls -la build/ && cat build/config.json
+
+      - name: Upload build artifact (Dev)
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-dev
+          path: build/
+          retention-days: 7
+
+  # Job 5: Build Prod (ubuntu-latest, parallel with build_dev)
+  build_prod:
+    runs-on: ubuntu-latest
+    needs: [unit_tests, integration_tests]
+    name: Build Prod Environment
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Create build directory
+        run: mkdir -p build
+
+      - name: Build config for Prod
+        run: |
+          node -e "
+            const config = {
+              environment: 'production',
+              apiUrl: 'https://api.example.com',
+              apiVersion: '1.0.0',
+              debugMode: false
+            };
+            const fs = require('fs');
+            fs.writeFileSync('build/config.json', JSON.stringify(config, null, 2));
+            console.log('Prod config created:');
+            console.log(JSON.stringify(config, null, 2));
+          "
+
+      - name: Display build config location
+        run: ls -la build/ && cat build/config.json
+
+      - name: Upload build artifact (Prod)
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-prod
+          path: build/
+          retention-days: 7
